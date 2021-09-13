@@ -1,0 +1,13 @@
+AccelStepper.c:5:6:AccelStepper_init	16	static
+AccelStepper.c:33:6:setMaxSpeed	16	static
+AccelStepper.c:49:6:setAcceleration	16	static
+AccelStepper.c:66:6:computeNewSpeed	24	static
+AccelStepper.c:129:6:distanceToGo	16	static
+AccelStepper.c:134:6:run	16	static
+AccelStepper.c:180:6:runSpeed	16	static
+AccelStepper.c:207:6:step	16	static
+AccelStepper.c:225:6:isRunning	16	static
+AccelStepper.c:229:6:setCurentPos	16	static
+AccelStepper.c:233:6:moveTo	16	static
+AccelStepper.c:242:6:setSpeed	16	static
+AccelStepper.c:256:6:enableStepper	16	static

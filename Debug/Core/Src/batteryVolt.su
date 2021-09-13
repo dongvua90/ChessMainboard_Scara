@@ -1,0 +1,3 @@
+batteryVolt.c:15:6:HAL_ADC_ConvCpltCallback	16	static
+batteryVolt.c:25:6:batteryVoltInit	8	static
+batteryVolt.c:29:10:batteryGet	4	static
