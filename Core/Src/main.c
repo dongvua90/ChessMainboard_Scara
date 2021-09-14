@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include "eeprom.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,6 +62,11 @@ uint8_t uart2_rx_buf[UART2_BUFFER_LENGTH];
 uint8_t uart2_main_buf[UART2_BUFFER_LENGTH];
 bool uart2_onData=false;
 uint8_t uart2_data_length;
+
+//eeprom
+uint16_t VirtAddVarTab[NB_OF_VAR] = {0x5555, 0x6666, 0x7777};
+uint16_t VarDataTab[NB_OF_VAR] = {0, 0, 0};
+uint16_t VarValue,VarDataTmp = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,7 +119,11 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  HAL_FLASH_Unlock();
+  if( EE_Init() != EE_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -130,6 +140,10 @@ int main(void)
   MX_I2C3_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+
+
+
+
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, uart2_rx_buf, UART2_BUFFER_LENGTH);
   __HAL_DMA_DISABLE_IT(&hdma_usart2_rx,DMA_IT_HT);
   /* USER CODE END 2 */

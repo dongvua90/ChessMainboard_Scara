@@ -36,6 +36,8 @@
 #include "batteryVolt.h"
 #include "AccelStepper.h"
 #include <string.h>
+#include <math.h>
+#include "eeprom.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -75,9 +77,12 @@
 #define CMD_MOVE		'm'
 #define CMD_MOVEPIECE	'M'
 #define CMD_MOVEHOME  	'H'
+#define CMD_MOVETEST	'A'
+#define CMD_MOVETESTJ2	'B'
+#define CMD_KINETIC		'K'
 
 #define CMD_GETPOS 		'S'
-#define CMD_GETPOS_BACK 'B'
+#define CMD_GETPOS_BACK 'b'
 #define CMD_GETPOS_NEXT 'N'
 
 /* USER CODE END PD */
@@ -103,7 +108,7 @@ const struct Point square[80]={
 		{3015,1715},{2941,1730},{2877,1728},{2825,1712},{2801,1666},{2787,1612},{2808,1516},{2870,1367},	//8
 	//		a			b			c			d			e			f			g			h
 		{1854,2178},{2004,2089},{2156,1992},{2302,1872},{2434,1740},{1946,2028},{2089,1937},{2234,1833}, // Square Kill-1
-		{2360,1731},{2508,1578},{2062,1852},{2176,1791},{2302,1698},{2439,1577},{2598,1391},{2068,3004}  // Square Kill-2
+		{2360,1731},{2508,1578},{2062,1852},{2176,1791},{2302,1698},{2439,1577},{2598,1391},{2389,3053}  // Square Kill-2
 																	         // Home ------------^
 };
 
@@ -114,6 +119,18 @@ void movePiece(uint8_t qFrom,uint8_t qTo,uint8_t option);	// qFrom: square from 
 void moveToHome();										// move to home and off motor
 void moveToKill();
 void updateInfo();
+
+#define PI 3.14159f;
+#define sq(x) ((x)*(x))
+uint16_t J1ORIGIN = 2389;
+uint16_t J2ORIGIN =	3053;
+float theta1,theta2;
+const float L1=180.0f;
+const float L2=314.0f;
+bool user_calibase =false;
+bool runfirts = false;
+void inverseKinematics(float x, float y);
+void calibase();
 //test
 void testDebug();
 /* USER CODE END PM */
@@ -163,8 +180,9 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
 	if(htim->Instance==TIM3)								// Stepper J1
 	{
-		motor_j1_data._currentPos = data_AS5600_M1;			// Set Current Position
+		if(user_calibase==false) motor_j1_data._currentPos = data_AS5600_M1;			// Set Current Position
 		osSemaphoreRelease(binarySem_motorJ1Handle);		// Release Semaphore for Calculator Stepper (run)
+		if(user_calibase) return;
 		accel_j1_tik++;
 		if(accel_j1_tik==1000)								// Changer Accel
 		{
@@ -179,8 +197,9 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 	}
 	if(htim->Instance==TIM2)								// Stepper J2
 		{
-			motor_j2_data._currentPos = data_AS5600_M2;		// Set Current Position
+			if(user_calibase == false) motor_j2_data._currentPos = data_AS5600_M2;		// Set Current Position
 			osSemaphoreRelease(binarySem_motorJ2Handle);	// Release Semaphore for Calculator Stepper (run)
+			if(user_calibase) return;
 			accel_j2_tik++;
 			if(accel_j2_tik==500)
 			{
@@ -304,7 +323,7 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityAboveNormal, 0, 1024);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityAboveNormal, 0, 4096);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of motorJ1Task */
@@ -368,6 +387,8 @@ __weak void StartDefaultTask(void const * argument)
 		 	  printf("AS5600_J1:%d_J2:%d Hal_Up:%d_Down:%d Bat:%2d Status:%d\r\n",
 		 			  data_AS5600_M1,data_AS5600_M2,HAL_SENSOR_UP_GET,HAL_SENSOR_DOWN_GET,
 					  batteryGet(),data_trans_master[6]);
+		 	 	enableStepper(&motor_j1_data, OFF);
+		 	 	enableStepper(&motor_j2_data, OFF);
 		// PICK
 		  }else if(uart2_main_buf[0]==CMD_PICK){
 			  char sval[1];
@@ -429,6 +450,76 @@ __weak void StartDefaultTask(void const * argument)
 		  }else if(uart2_main_buf[0]==CMD_MOVEHOME){
 			  printf("MOVE HOME\r\n");
 			  moveToHome();
+		  }else if(uart2_main_buf[0]==CMD_MOVETEST){
+			  user_calibase = true;
+			  if(runfirts==false){
+				  runfirts = true;
+				  motor_j1_data._currentPos =0;
+				  motor_j1_data._targetPos =0;
+			  }
+
+			  printf("MOVE:AS5600:%d\r\n",data_AS5600_M1);
+			  char sposJ1[4];
+			  for(int i=0;i<4;i++){
+				  sposJ1[i] = uart2_main_buf[i+1];
+			  }
+			  int posJ1 = atoi(sposJ1);
+			  enableStepper(&motor_j1_data, ON);
+			  moveTo(&motor_j1_data,posJ1);
+			  run(&motor_j1_data);
+				while( isRunning(&motor_j1_data)){	// Waiting for move finish
+					osDelay(10);
+				}
+				osDelay(300);
+				printf("Finish:AS5600:%d\r\n",data_AS5600_M1);
+				motor_j1_data.isStop = true;
+//				enableStepper(&motor_j1_data, OFF);
+		  }else if(uart2_main_buf[0]==CMD_MOVETESTJ2){
+			  enableStepper(&motor_j1_data, ON);
+			  printf("MOVE:AS56002:%d\r\n",data_AS5600_M2);
+			  char sposJ2[4];
+			  for(int i=0;i<4;i++){
+				  sposJ2[i] = uart2_main_buf[i+1];
+			  }
+			  int posJ2 = atoi(sposJ2);
+			  enableStepper(&motor_j2_data, ON);
+			  moveTo(&motor_j2_data,posJ2);
+			  run(&motor_j2_data);
+				while( isRunning(&motor_j2_data)){	// Waiting for move finish
+					osDelay(10);
+				}
+				osDelay(300);
+				printf("Finish:AS56002:%d\r\n",data_AS5600_M2);
+				motor_j2_data.isStop = true;
+//				enableStepper(&motor_j2_data, OFF);
+		  }else if(uart2_main_buf[0]==CMD_KINETIC){
+			  int dx,dy;
+			  char sdx[5],sdy[5];
+			  for(int i=0;i<4;i++){
+				  sdx[i]=uart2_main_buf[i+1];
+				  sdy[i] = uart2_main_buf[i+6];
+			  }
+			  dx = atoi(sdx);
+			  dy = atoi(sdy);
+			  inverseKinematics(dx, dy);
+		  }else if(uart2_main_buf[0]=='f'){
+//			  calibase();
+			  char dat[5];
+			 			  for(int i=0;i<4;i++){
+			 			  		dat[i] = uart2_main_buf[i+1];
+			 			  }
+			 int mdat = atoi(dat);
+			  EE_WriteVariable(0x1111, mdat);
+			  printf("EE write:%d\r\n",mdat);
+		  }else if(uart2_main_buf[0]=='F'){
+			  uint16_t dat=0;
+			  EE_ReadVariable(0x1111, &dat);
+			  printf("EE read:%d\r\n",dat);
+//			  char dat[5];
+//			  for(int i=0;i<4;i++){
+//			  		dat[i] = uart2_main_buf[i+1];
+//			  }
+//			  J2ORIGIN = atoi(dat);
 		  }
 #ifdef USERGETPOS
 			else if (uart2_main_buf[0] == CMD_GETPOS) {
@@ -462,6 +553,7 @@ __weak void StartDefaultTask(void const * argument)
 __weak void StartTaskMotorJ1(void const * argument)
 {
   /* USER CODE BEGIN StartTaskMotorJ1 */
+	printf("Robochess 2021 -taskJ1\r\n");
 		osDelay(2000);						// Wait for finish Init
 		motor_j1_data.GPIO_PIN_Dir		= J1_DIR_Pin;
 		motor_j1_data.GPIO_PORT_Dir		= J1_DIR_GPIO_Port;
@@ -658,6 +750,89 @@ void updateInfo(){
 	  if(moveIsFinish == true) status |=(1<<3); else status &=~(1<<3);
 	  data_trans_master[6] = status;
 }
+// INVERSE KINEMATICS
+void inverseKinematics(float x, float y) {
+	  printf("x:%f  ",x);
+	  printf("y:%f\r\n",y);
+  theta2 = acos((sq(x) + sq(y) - sq(L1) - sq(L2)) / (2 * L1 * L2));
+ if (x < 0 && y < 0) {
+    theta2 = (-1) * theta2;
+ }
+
+  theta1 = atan(y/x) + atan((L2 * sin(theta2)) / (L1 + L2 * cos(theta2)));
+
+  theta2 = theta2 * 180 / PI;
+  theta1 = theta1 * 180 / PI;
+  if(theta1<0) theta1 =180 - (-1)*theta1;
+
+//  printf("theta1:%f\r\n",theta1);
+//  printf("theta2:%f\r\n",theta2);
+
+  theta1 = 90 - theta1;
+  theta2 = 180 - theta2;
+//  printf("Q1:%f\r\n",theta1);
+//  printf("Q2:%f\r\n",theta2);
+  long int pul1,pul2;
+  pul1 = J1ORIGIN + theta1*11.377;
+  pul2 = J2ORIGIN	-theta2*11.377;
+//  pul1 = round(pul1);
+//  pul2 = round(pul2);
+  printf("P1:%ld\r\n",pul1);
+  printf("P2:%ld\r\n",pul2);
+
+	AS5600_Start_Update_High();
+	enableStepper(&motor_j1_data, ON);
+	enableStepper(&motor_j2_data, ON);
+	moveTo(&motor_j1_data,pul1);
+	run(&motor_j1_data);
+	moveTo(&motor_j2_data,pul2);
+	run(&motor_j2_data);
+	uint16_t check_time_out=0;
+	while( isRunning(&motor_j1_data) || isRunning(&motor_j2_data) ){	// Waiting for move finish
+		if( labs(distanceToGo(&motor_j1_data)) < 2  &&  labs(distanceToGo(&motor_j2_data)) < 2 ){		// neu dung sai la nho thi thoat trong khoang 500ms
+			check_time_out++;
+			if(check_time_out > 100) break;
+		}
+		osDelay(10);
+	}
+	motor_j1_data.isStop = true;
+	motor_j2_data.isStop = true;
+	enableStepper(&motor_j1_data, OFF);
+	enableStepper(&motor_j2_data, OFF);
+	AS5600_Start_Update_Low();
+}
+
+void calibase(){
+	user_calibase =true;
+	int pos = 0;
+	float fpos = 0;
+
+	int change=0;
+	AccelStepper_init(&motor_j1_data, htim3, 0, J1_SPEED, 10000);
+	enableStepper(&motor_j1_data, ON);
+	run(&motor_j1_data);
+	osDelay(3000);
+	float fAS5600 = data_AS5600_M1;
+	for(int i=0;i<1024;i++){
+//		fpos += 174;
+//		fAS5600 += 11.378f;
+		fpos += 16;
+		fAS5600 +=1;
+		pos =fpos;
+		moveTo(&motor_j1_data, pos);
+		  run(&motor_j1_data);
+			while( isRunning(&motor_j1_data)){	// Waiting for move finish
+				osDelay(10);
+			}
+			osDelay(500);
+		change = data_AS5600_M1 - fAS5600;
+		if(i<3) fAS5600 = data_AS5600_M1;
+//		printf("%d - %d  %f  %d\r\n",i,data_AS5600_M1,fAS5600, change);
+		printf("%d\r\n",change);
+	}
+
+}
+
 
 void testDebug(){
 	uint8_t _qfrom,_qto;
