@@ -36,6 +36,7 @@
 #include "batteryVolt.h"
 #include "AccelStepper.h"
 #include <string.h>
+#include "eeprom.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -61,6 +62,7 @@
 #define CMD_I2C_MOVE_CASLLINGG_QUEEN  	3
 #define CMD_I2C_MOVE_CASLLING_KING    	4
 #define CMD_I2C_MOVE_PASSANT			5
+#define CMD_I2C_SETPOS_SQUARE			6
 
 
 // User Debug
@@ -80,6 +82,8 @@
 #define CMD_GETPOS_BACK 'B'
 #define CMD_GETPOS_NEXT 'N'
 
+#define ADDR_EE_POSJ1 0x5555
+#define ADDR_EE_POSJ2 0x7777
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -92,28 +96,32 @@ struct Point{
 };
 
 struct Point square1,square2;
-const struct Point square[80]={
-		{2096,2841},{1764,2915},{1609,2906},{1577,2837},{1598,2742},{1637,2640},{1680,2531},{1739,2415},	//1
-		{2320,2674},{2121,2708},{1976,2704},{1884,2668},{1844,2606},{1842,2526},{1862,2432},{1897,2324},	//2
-		{2453,2532},{2324,2557},{2206,2554},{2117,2527},{2068,2477},{2050,2408},{2050,2322},{2070,2218},	//3
-		{2563,2388},{2462,2410},{2372,2410},{2300,2389},{2252,2343},{2223,2278},{2219,2195},{2233,2093},	//4
-		{2663,2241},{2571,2259},{2497,2261},{2438,2240},{2396,2197},{2374,2133},{2368,2053},{2378,1950},	//5
-		{2768,2077},{2679,2098},{2612,2099},{2562,2077},{2526,2033},{2507,1971},{2499,1894},{2510,1802},	//6
-		{2883,1900},{2800,1916},{2735,1916},{2684,1905},{2656,1856},{2636,1804},{2637,1724},{2658,1625},	//7
-		{3015,1715},{2941,1730},{2877,1728},{2825,1712},{2801,1666},{2787,1612},{2808,1516},{2870,1367},	//8
-	//		a			b			c			d			e			f			g			h
-		{1854,2178},{2004,2089},{2156,1992},{2302,1872},{2434,1740},{1946,2028},{2089,1937},{2234,1833}, // Square Kill-1
-		{2360,1731},{2508,1578},{2062,1852},{2176,1791},{2302,1698},{2439,1577},{2598,1391},{2068,3004}  // Square Kill-2
-																	         // Home ------------^
-};
+//const struct Point square[80]={
+//		{2113,2830},{1792,2896},{1645,2887},{1609,2818},{1627,2726},{1667,2626},{1712,2518},{1769,2402},
+//		{2349,2660},{2163,2690},{2002,2689},{1919,2650},{1879,2592},{1877,2511},{1896,2419},{1937,2312},
+//		{2492,2514},{2360,2539},{2246,2537},{2154,2514},{2102,2462},{2087,2390},{2087,2305},{2115,2197},
+//		{2590,2380},{2493,2398},{2407,2396},{2335,2375},{2292,2329},{2261,2267},{2260,2181},{2277,2073},
+//		{2696,2226},{2603,2250},{2530,2247},{2474,2222},{2434,2173},{2408,2115},{2398,2038},{2414,1937},
+//		{2805,2062},{2717,2082},{2648,2081},{2596,2059},{2560,2019},{2538,1961},{2534,1881},{2548,1776},
+//		{2925,1884},{2837,1901},{2770,1902},{2724,1882},{2684,1851},{2673,1789},{2671,1716},{2703,1597},
+//		{3068,1690},{2986,1712},{2915,1714},{2863,1701},{2837,1652},{2827,1591},{2841,1498},{2920,1325},
+//	//		a			b			c			d			e			f			g			h
+//		{1885,2187},{2021,2109},{2191,1988},{2330,1885},{2467,1744},{1984,2029},{2111,1975},{2229,1913},
+//		{2365,1797},{2509,1650},{2064,1919},{2181,1856},{2301,1797},{2416,1696},{2536,1578},{2076,3040}};
+//																	         // Home ------------^
+
+struct Point square[80];
 
 uint8_t square_kill_number=0;		// Variable save Square kiled
+uint16_t num_squa=0;
 
 void moveToSquare(uint8_t point,bool continues);		// Point: square in board , continues: tiep tuc di chuyen ngay sau do hay khong?
 void movePiece(uint8_t qFrom,uint8_t qTo,uint8_t option);	// qFrom: square from is move , qTo: square to is move , option:MOVE_PIECE,MOVE_KILL,MOVE_CALLING
 void moveToHome();										// move to home and off motor
 void moveToKill();
 void updateInfo();
+void updateSquarePosition(uint16_t squa);
+void readSquarePosition();
 //test
 void testDebug();
 /* USER CODE END PM */
@@ -304,7 +312,7 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityAboveNormal, 0, 1024);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityAboveNormal, 0, 4096);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of motorJ1Task */
@@ -338,6 +346,7 @@ __weak void StartDefaultTask(void const * argument)
 #ifdef MDEBUG
 	printf("Robochess 2021\r\n");
 #endif
+	readSquarePosition();
 	HAL_I2C_EnableListen_IT(&hi2c2);	// I2C2 for interface
 	AS5600_Start_Update();				// Start Tim10 & get data of AS5600
 	batteryVoltInit();
@@ -429,6 +438,21 @@ __weak void StartDefaultTask(void const * argument)
 		  }else if(uart2_main_buf[0]==CMD_MOVEHOME){
 			  printf("MOVE HOME\r\n");
 			  moveToHome();
+		  }else if(uart2_main_buf[0]=='w'){
+			  char sdat[3];
+			  sdat[0]=uart2_main_buf[1];
+			  sdat[1]=uart2_main_buf[2];
+			  uint16_t squa = atoi(sdat);
+			  num_squa = squa;
+			  printf("set square to %d\r\n",num_squa);
+		  }else if(uart2_main_buf[0]=='r'){
+			  readSquarePosition();
+		  }
+		  else if(uart2_main_buf[0]=='W'){
+			  if(num_squa>=80) return;
+		  	updateSquarePosition(num_squa);
+		  	num_squa++;
+		  	printf("next square:%d\r\n",num_squa);
 		  }
 #ifdef USERGETPOS
 			else if (uart2_main_buf[0] == CMD_GETPOS) {
@@ -547,6 +571,8 @@ __weak void StartTaskMove(void const * argument)
 #endif
 			moveToHome();
 			moveIsFinish = true;
+		}else if(data_rev_master[0] == CMD_I2C_SETPOS_SQUARE){
+			updateSquarePosition(data_rev_master[1]);
 		}
 		osDelay(10);
 	}
@@ -659,6 +685,32 @@ void updateInfo(){
 	  data_trans_master[6] = status;
 }
 
+void updateSquarePosition(uint16_t squa){
+	EE_WriteVariable(ADDR_EE_POSJ1 + squa, data_AS5600_M1);
+	EE_WriteVariable(ADDR_EE_POSJ2 + squa, data_AS5600_M2);
+	printf("Saved square %d to EEPROM\r\n",squa);
+}
+void readSquarePosition(){
+#ifdef MDEBUG
+	printf("reading...\r\n");
+#endif
+	uint16_t posj1,posj2;
+	for(int i=0;i<80;i++){
+		EE_ReadVariable(ADDR_EE_POSJ1 + i, &posj1);
+		EE_ReadVariable(ADDR_EE_POSJ2 + i, &posj2);
+		square[i].j1 = posj1;
+		square[i].j2 = posj2;
+	}
+#ifdef MDEBUG
+	for(int x=0;x<10;x++){
+		for(int y=0;y<8;y++){
+			printf("{%d,%d},",square[x*8 +y].j1,square[x*8 +y].j2);
+		}
+		printf("\r\n");
+	}
+	printf("read finish\r\n");
+#endif
+}
 void testDebug(){
 	uint8_t _qfrom,_qto;
 	_qfrom = 63;

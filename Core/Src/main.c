@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include "eeprom.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +48,9 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+uint16_t VirtAddVarTab[NB_OF_VAR] = {0x5555, 0x6666, 0x7777};
+uint16_t VarDataTab[NB_OF_VAR] = {0, 0, 0};
+uint16_t VarValue,VarDataTmp = 0;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -113,7 +116,11 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  HAL_FLASH_Unlock();
+  if( EE_Init() != EE_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
