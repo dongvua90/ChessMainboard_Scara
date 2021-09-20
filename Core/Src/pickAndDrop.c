@@ -56,7 +56,12 @@ void j3MoveDown()
 		lefttim--;
 	}
 	j3Stop();									// Stop
-	osDelay(300);
+	lefttim = 1000;
+	while(HAL_SENSOR_DOWN_GET==1 && lefttim>0){
+			osDelay(1);		// Wait for finish
+			lefttim--;
+	}
+	osDelay(200);
 }
 void pickupPiece()
 {
@@ -64,13 +69,13 @@ void pickupPiece()
 	osDelay(200);
 	j3MoveDown();
 	SERVO_PICKUP;
-	osDelay(200);
+	osDelay(500);
 	j3MoveUp();
 }
 void dropPiece()
 {
 	j3MoveDown();
 	SERVO_DROP;
-	osDelay(200);
+	osDelay(500);
 	j3MoveUp();
 }

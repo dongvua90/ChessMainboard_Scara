@@ -14,15 +14,7 @@ uint16_t data_AS5600_M1,data_AS5600_M2;
 
 bool FLAG_AS5600_M1 = HAL_OK, FLAG_AS5600_M2 = HAL_OK;
 
-// Handler I2C Error
-void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c){
-	if(hi2c->Instance==AS5600_1_I2C){
-       FLAG_AS5600_M1 = HAL_ERROR;
-	}
-	if(hi2c->Instance==AS5600_2_I2C){
-		FLAG_AS5600_M2 = HAL_ERROR;
-	}
-}
+
 
 void AS5600_M1_getPOS(){
 	HAL_I2C_Mem_Read_DMA(&hi2c1,0x36<<1,_RAWANGLEAddressLSB,1,(uint8_t*)&data_AS5600_M1,2);

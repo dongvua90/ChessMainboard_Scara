@@ -4,5 +4,5 @@ pickAndDrop.c:28:6:j3Down	4	static
 pickAndDrop.c:33:6:j3Stop	4	static
 pickAndDrop.c:39:6:j3MoveUp	16	static
 pickAndDrop.c:50:6:j3MoveDown	16	static
-pickAndDrop.c:61:6:pickupPiece	8	static
-pickAndDrop.c:70:6:dropPiece	8	static
+pickAndDrop.c:66:6:pickupPiece	8	static
+pickAndDrop.c:75:6:dropPiece	8	static

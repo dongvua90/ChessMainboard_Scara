@@ -227,7 +227,26 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 	if(hi2c->Instance==I2C2)
 	{
 		osSemaphoreRelease(binarySem_masterCmdHandle);// sau khi nhan duoc lenh tu master
+		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 	}
+}
+
+// Handler I2C Error
+extern bool FLAG_AS5600_M1, FLAG_AS5600_M2;
+void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c){
+	if(hi2c->Instance==I2C1){
+       FLAG_AS5600_M1 = HAL_ERROR;
+	}
+	if(hi2c->Instance==I2C3){
+		FLAG_AS5600_M2 = HAL_ERROR;
+	}
+	 if(hi2c->Instance==I2C2){
+		 HAL_I2C_DeInit(&hi2c2);
+		 MX_I2C2_Init();
+		 HAL_I2C_EnableListen_IT(&hi2c2);	// I2C2 for interface
+		HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+		HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+	 }
 }
 
 /* USER CODE END FunctionPrototypes */
@@ -312,19 +331,19 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityAboveNormal, 0, 4096);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityAboveNormal, 0, 2048);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* definition and creation of motorJ1Task */
-  osThreadDef(motorJ1Task, StartTaskMotorJ1, osPriorityHigh, 0, 2048);
+  osThreadDef(motorJ1Task, StartTaskMotorJ1, osPriorityHigh, 0, 512);
   motorJ1TaskHandle = osThreadCreate(osThread(motorJ1Task), NULL);
 
   /* definition and creation of motorJ2Task */
-  osThreadDef(motorJ2Task, StartTaskMotorJ2, osPriorityHigh, 0, 2048);
+  osThreadDef(motorJ2Task, StartTaskMotorJ2, osPriorityHigh, 0, 512);
   motorJ2TaskHandle = osThreadCreate(osThread(motorJ2Task), NULL);
 
   /* definition and creation of moveTask */
-  osThreadDef(moveTask, StartTaskMove, osPriorityRealtime, 0, 1024);
+  osThreadDef(moveTask, StartTaskMove, osPriorityRealtime, 0, 4096);
   moveTaskHandle = osThreadCreate(osThread(moveTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -468,7 +487,7 @@ __weak void StartDefaultTask(void const * argument)
 				printf("Square:%d\r\n",square_getpos);
 			}
 #endif
-		 HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+//		 HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
 	  }
 #endif
 	 	  osDelay(100);
@@ -565,6 +584,7 @@ __weak void StartTaskMove(void const * argument)
 			printf("I2C-MOVE-%d->%d OP:%d\r\n",data_rev_master[1],data_rev_master[2],data_rev_master[3]);
 #endif
 			movePiece(data_rev_master[1], data_rev_master[2],data_rev_master[3]);
+			moveIsFinish = true;
 		} else if (data_rev_master[0] == CMD_I2C_MOVE_HOME) {
 #ifdef MDEBUG
 			printf("I2C-MOVEHOME\r\n");
