@@ -56,6 +56,11 @@
 #define J2_SPEED		10000
 #define J2_ACCEL_MAX	400000//200000
 #define J2_ACCEL_MIN	100000
+#define J3_SPEED		13000
+#define J3_ACCEL_MAX	100000//200000
+#define J3_ACCEL_MIN	50000
+#define J3_LIMIT_DOWN		0
+#define J3_LIMIT_UP	 	-3750 ///-3350
 
 #define CMD_I2C_MOVE_PIECE				1
 #define CMD_I2C_MOVE_HOME				2
@@ -120,6 +125,12 @@ void moveToHome();										// move to home and off motor
 void moveToKill();
 void updateInfo();
 
+void pickAndDropInit();
+void pickupPiece();
+void dropPiece();
+int j3MoveUp();
+int j3MoveDown();
+
 #define PI 3.14159f;
 #define sq(x) ((x)*(x))
 uint16_t J1ORIGIN = 2389;
@@ -144,7 +155,7 @@ extern I2C_HandleTypeDef hi2c3;						// AS5600_J2
 extern TIM_HandleTypeDef htim3; 					// STEPPER_J1
 extern TIM_HandleTypeDef htim2;						// STEPPER_J2
 extern uint16_t data_AS5600_M1,data_AS5600_M2;		// Data of AS5600.c
-struct AccelStepperData motor_j1_data,motor_j2_data;// Variable of Stepper
+struct AccelStepperData motor_j1_data,motor_j2_data,motor_j3_data;// Variable of Stepper
 uint16_t accel_j1_tik=0,accel_j2_tik=0;				// Variable of Change Accel
 bool new_master_cmd = false;						// su ly sau khi nhan duoc data tu master
 uint8_t square_getpos=0;	// for debug getpos
@@ -168,9 +179,11 @@ osThreadId defaultTaskHandle;
 osThreadId motorJ1TaskHandle;
 osThreadId motorJ2TaskHandle;
 osThreadId moveTaskHandle;
+osThreadId motorJ3TaskHandle;
 osSemaphoreId binarySem_motorJ1Handle;
 osSemaphoreId binarySem_motorJ2Handle;
 osSemaphoreId binarySem_masterCmdHandle;
+osSemaphoreId binarySem_motorJ3Handle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -196,22 +209,26 @@ void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 		}
 	}
 	if(htim->Instance==TIM2)								// Stepper J2
+	{
+		if(user_calibase == false) motor_j2_data._currentPos = data_AS5600_M2;		// Set Current Position
+		osSemaphoreRelease(binarySem_motorJ2Handle);	// Release Semaphore for Calculator Stepper (run)
+		if(user_calibase) return;
+		accel_j2_tik++;
+		if(accel_j2_tik==500)
 		{
-			if(user_calibase == false) motor_j2_data._currentPos = data_AS5600_M2;		// Set Current Position
-			osSemaphoreRelease(binarySem_motorJ2Handle);	// Release Semaphore for Calculator Stepper (run)
-			if(user_calibase) return;
-			accel_j2_tik++;
-			if(accel_j2_tik==500)
-			{
-				accel_j2_tik=0;
-				long distance = distanceToGo(&motor_j2_data);
-				if(labs(distance) < 100){
-					setAcceleration(&motor_j2_data, J2_ACCEL_MIN);
-				}else{
-					setAcceleration(&motor_j2_data, J2_ACCEL_MAX);
-				}
+			accel_j2_tik=0;
+			long distance = distanceToGo(&motor_j2_data);
+			if(labs(distance) < 100){
+				setAcceleration(&motor_j2_data, J2_ACCEL_MIN);
+			}else{
+				setAcceleration(&motor_j2_data, J2_ACCEL_MAX);
 			}
 		}
+	}
+	if(htim->Instance==TIM5)								// Stepper J2
+	{
+		osSemaphoreRelease(binarySem_motorJ3Handle);	// Release Semaphore for Calculator Stepper (run)
+	}
 }
 
 // I2C-Interface
@@ -247,6 +264,7 @@ void StartDefaultTask(void const * argument);
 void StartTaskMotorJ1(void const * argument);
 void StartTaskMotorJ2(void const * argument);
 void StartTaskMove(void const * argument);
+void StartTaskMotorJ3(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -309,6 +327,10 @@ void MX_FREERTOS_Init(void) {
   osSemaphoreDef(binarySem_masterCmd);
   binarySem_masterCmdHandle = osSemaphoreCreate(osSemaphore(binarySem_masterCmd), 1);
 
+  /* definition and creation of binarySem_motorJ3 */
+  osSemaphoreDef(binarySem_motorJ3);
+  binarySem_motorJ3Handle = osSemaphoreCreate(osSemaphore(binarySem_motorJ3), 1);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
@@ -338,6 +360,10 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(moveTask, StartTaskMove, osPriorityRealtime, 0, 1024);
   moveTaskHandle = osThreadCreate(osThread(moveTask), NULL);
 
+  /* definition and creation of motorJ3Task */
+  osThreadDef(motorJ3Task, StartTaskMotorJ3, osPriorityHigh, 0, 1024);
+  motorJ3TaskHandle = osThreadCreate(osThread(motorJ3Task), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
@@ -360,7 +386,8 @@ __weak void StartDefaultTask(void const * argument)
 	HAL_I2C_EnableListen_IT(&hi2c2);	// I2C2 for interface
 	AS5600_Start_Update();				// Start Tim10 & get data of AS5600
 	batteryVoltInit();
-	pickAndDropInit();
+//	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);	// Start PWM for Servo
+//	SERVO_DROP;
   /* Infinite loop */
   for(;;)
   {
@@ -505,21 +532,46 @@ __weak void StartDefaultTask(void const * argument)
 		  }else if(uart2_main_buf[0]=='f'){
 //			  calibase();
 			  char dat[5];
-			 			  for(int i=0;i<4;i++){
-			 			  		dat[i] = uart2_main_buf[i+1];
-			 			  }
-			 int mdat = atoi(dat);
+			  for(int i=0;i<4;i++){
+				  dat[i] = uart2_main_buf[i+1];
+			  }
+			  int mdat = atoi(dat);
 			  EE_WriteVariable(0x1111, mdat);
 			  printf("EE write:%d\r\n",mdat);
 		  }else if(uart2_main_buf[0]=='F'){
 			  uint16_t dat=0;
 			  EE_ReadVariable(0x1111, &dat);
 			  printf("EE read:%d\r\n",dat);
+		  }else if(uart2_main_buf[0]=='J'){
+			  printf("Pickup\r\n");
+			  pickupPiece();
+//			  enableStepper(&motor_j3_data, ON);
+//			  moveTo(&motor_j3_data, mdat);
+//			  run(&motor_j3_data);
+//			  while( isRunning(&motor_j3_data) ){	// Waiting for move finish
+//					osDelay(10);
+//			 }
+//			 motor_j3_data.isStop = true;
+//			 enableStepper(&motor_j3_data, OFF);
+		  }else if(uart2_main_buf[0]=='j'){
+			  printf("pickDown\r\n");
+			  dropPiece();
+		  }else if(uart2_main_buf[0]=='y'){
+			  printf("Test do ben:\r\n");
+			  for(int i=0;i<1000;i++){
+				  pickupPiece();
+				  osDelay(500);
+				  dropPiece();
+				  osDelay(500);
+				  printf("picked: %d\r\n",i);
+			  }
+			  printf("finish ok\r\n");
 //			  char dat[5];
-//			  for(int i=0;i<4;i++){
-//			  		dat[i] = uart2_main_buf[i+1];
-//			  }
-//			  J2ORIGIN = atoi(dat);
+//			 for(int i=0;i<4;i++){
+//			 	dat[i] = uart2_main_buf[i+1];
+//			 }
+//			 int mdat = atoi(dat);
+//			 TIM4->CCR3=mdat;
 		  }
 #ifdef USERGETPOS
 			else if (uart2_main_buf[0] == CMD_GETPOS) {
@@ -643,6 +695,41 @@ __weak void StartTaskMove(void const * argument)
 		osDelay(10);
 	}
   /* USER CODE END StartTaskMove */
+}
+
+/* USER CODE BEGIN Header_StartTaskMotorJ3 */
+/**
+* @brief Function implementing the motorJ3Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTaskMotorJ3 */
+__weak void StartTaskMotorJ3(void const * argument)
+{
+  /* USER CODE BEGIN StartTaskMotorJ3 */
+	osDelay(2000);						// Wait for finish Init
+	motor_j3_data.GPIO_PIN_Dir		= J3_DIR_Pin;
+	motor_j3_data.GPIO_PORT_Dir		= J3_DIR_GPIO_Port;
+	motor_j3_data.GPIO_PORT_Enable	= J3_EN_GPIO_Port;
+	motor_j3_data.GPIO_PIN_Enable	= J3_EN_Pin;
+	motor_j3_data.USER_TIMER		= TIM5;
+	motor_j3_data.TIM_CHANEL		= TIM_CHANNEL_1;
+	motor_j3_data.isStop			= false;
+	AccelStepper_init(&motor_j3_data, htim5, 0, J3_SPEED, J3_ACCEL_MAX);
+	#ifdef USERGETPOS
+		enableStepper(&motor_j3_data, OFF);
+		while(1){			// disable this task
+			osDelay(1000);
+		}
+	#endif
+		pickAndDropInit();
+  /* Infinite loop */
+  for(;;)
+  {
+	  osSemaphoreWait(binarySem_motorJ3Handle, osWaitForever);
+	  run(&motor_j3_data);
+  }
+  /* USER CODE END StartTaskMotorJ3 */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -832,7 +919,70 @@ void calibase(){
 	}
 
 }
-
+void pickAndDropInit(){
+	HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);	// Start PWM for Servo
+	SERVO_DROP;
+	if(HAL_SENSOR_UP_GET==GPIO_PIN_SET){		// neu ko J3 ko phai o vi tri up
+		enableStepper(&motor_j3_data, ON);
+		moveTo(&motor_j3_data, J3_LIMIT_UP);
+		run(&motor_j3_data);
+		while( isRunning(&motor_j3_data) ){	// Waiting for move finish
+			if(HAL_SENSOR_UP_GET==GPIO_PIN_RESET)
+				enableStepper(&motor_j3_data, OFF);
+			osDelay(10);
+		}
+		enableStepper(&motor_j3_data, OFF);
+	}else{
+		motor_j3_data._currentPos = J3_LIMIT_UP;
+		motor_j3_data._targetPos = J3_LIMIT_UP;
+	}
+}
+void pickupPiece(){
+	SERVO_DROP;
+	if(j3MoveDown()==-1){
+		j3MoveUp();
+		SERVO_EXTERN;
+		osDelay(200);
+		j3MoveDown();
+	}
+	SERVO_PICKUP;
+	osDelay(300);
+	j3MoveUp();
+}
+void dropPiece(){
+	j3MoveDown();
+	SERVO_DROP;
+	osDelay(300);
+	j3MoveUp();
+}
+int j3MoveUp(){
+	enableStepper(&motor_j3_data, ON);
+	moveTo(&motor_j3_data, J3_LIMIT_UP);
+	run(&motor_j3_data);
+	osDelay(300);
+	while( isRunning(&motor_j3_data) && HAL_SENSOR_UP_GET == GPIO_PIN_SET ){	// Waiting for move finish
+		osDelay(10);
+	}
+	enableStepper(&motor_j3_data, OFF);
+	if(HAL_SENSOR_UP_GET == GPIO_PIN_RESET)
+		return 0;
+	else
+		return -1;
+}
+int j3MoveDown(){
+	enableStepper(&motor_j3_data, ON);
+	moveTo(&motor_j3_data, J3_LIMIT_DOWN);
+	run(&motor_j3_data);
+	osDelay(300);
+	while( isRunning(&motor_j3_data) && HAL_SENSOR_DOWN_GET == GPIO_PIN_SET){	// Waiting for move finish
+		osDelay(10);
+	}
+	enableStepper(&motor_j3_data, OFF);
+	if(HAL_SENSOR_DOWN_GET == GPIO_PIN_RESET)
+		return 0;
+	else
+		return -1;
+}
 
 void testDebug(){
 	uint8_t _qfrom,_qto;

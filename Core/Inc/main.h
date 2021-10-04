@@ -64,10 +64,10 @@ void Error_Handler(void);
 #define HAL_SENSOR_B_GPIO_Port GPIOC
 #define HAL_SENSOR_A_Pin GPIO_PIN_15
 #define HAL_SENSOR_A_GPIO_Port GPIOC
-#define J3_A_Pin GPIO_PIN_0
-#define J3_A_GPIO_Port GPIOA
-#define J3_B_Pin GPIO_PIN_1
-#define J3_B_GPIO_Port GPIOA
+#define J3_STEP_TIM5_CH1_Pin GPIO_PIN_0
+#define J3_STEP_TIM5_CH1_GPIO_Port GPIOA
+#define J3_DIR_Pin GPIO_PIN_1
+#define J3_DIR_GPIO_Port GPIOA
 #define ADC_VOLT_SENSOR_Pin GPIO_PIN_4
 #define ADC_VOLT_SENSOR_GPIO_Port GPIOA
 #define J2_STEP_TIM2_CH1_Pin GPIO_PIN_5
@@ -94,6 +94,8 @@ void Error_Handler(void);
 #define LED_GPIO_Port GPIOA
 #define AS5600_2_SDA_Pin GPIO_PIN_4
 #define AS5600_2_SDA_GPIO_Port GPIOB
+#define J3_EN_Pin GPIO_PIN_5
+#define J3_EN_GPIO_Port GPIOB
 #define AS5600_1_SCL_Pin GPIO_PIN_6
 #define AS5600_1_SCL_GPIO_Port GPIOB
 #define AS5600_1_SDA_Pin GPIO_PIN_7
