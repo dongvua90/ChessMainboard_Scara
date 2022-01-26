@@ -44,6 +44,7 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define UART2_BUFFER_LENGTH	10
+#define UART1_BUFFER_LENGTH	100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,11 +58,17 @@
 extern bool FLAG_AS5600_M1, FLAG_AS5600_M2;
 UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
+DMA_HandleTypeDef hdma_usart1_rx;
 
 uint8_t uart2_rx_buf[UART2_BUFFER_LENGTH];
 uint8_t uart2_main_buf[UART2_BUFFER_LENGTH];
 bool uart2_onData=false;
 uint8_t uart2_data_length;
+
+uint8_t uart1_rx_buf[UART1_BUFFER_LENGTH];
+uint8_t uart1_main_buf[UART1_BUFFER_LENGTH];
+bool uart1_onData=false;
+uint8_t uart1_data_length;
 
 //eeprom
 uint16_t VirtAddVarTab[NB_OF_VAR] = {0x5555, 0x6666, 0x7777};
@@ -86,6 +93,21 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size){
 		uart2_onData=true;
 		uart2_data_length=Size;
 		HAL_UARTEx_ReceiveToIdle_DMA(&huart2, uart2_rx_buf, UART2_BUFFER_LENGTH);
+	}else if(huart->Instance==USART1){
+		memcpy(uart1_main_buf,uart1_rx_buf,UART1_BUFFER_LENGTH);
+		uart1_onData=true;
+		uart1_data_length=Size;
+		HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart1_rx_buf, UART1_BUFFER_LENGTH);
+	}
+}
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart){
+	if(huart->Instance==USART1){
+		for(int i=0;i<50;i++){
+			HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+			HAL_Delay(100);
+
+		}
+		HAL_NVIC_SystemReset();
 	}
 }
 
@@ -142,10 +164,13 @@ int main(void)
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
 
-
+  HAL_UART_Transmit(&huart2,(uint8_t *)"hellobaby\r\n",11,1000);
+  HAL_UART_Transmit(&huart1,(uint8_t *)"hellobaby\r\n",11,1000);
 
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, uart2_rx_buf, UART2_BUFFER_LENGTH);
   __HAL_DMA_DISABLE_IT(&hdma_usart2_rx,DMA_IT_HT);
+  HAL_UARTEx_ReceiveToIdle_DMA(&huart1, uart1_rx_buf, UART1_BUFFER_LENGTH);
+  __HAL_DMA_DISABLE_IT(&hdma_usart1_rx,DMA_IT_HT);
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */
@@ -187,7 +212,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 24;
+  RCC_OscInitStruct.PLL.PLLM = 8;
   RCC_OscInitStruct.PLL.PLLN = 168;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 4;

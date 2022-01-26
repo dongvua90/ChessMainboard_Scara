@@ -58,8 +58,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define BTN1_Pin GPIO_PIN_13
-#define BTN1_GPIO_Port GPIOC
+#define BATTERY_CHANGER_Pin GPIO_PIN_13
+#define BATTERY_CHANGER_GPIO_Port GPIOC
 #define HAL_SENSOR_B_Pin GPIO_PIN_14
 #define HAL_SENSOR_B_GPIO_Port GPIOC
 #define HAL_SENSOR_A_Pin GPIO_PIN_15
@@ -82,10 +82,6 @@ void Error_Handler(void);
 #define J1_DIR_GPIO_Port GPIOB
 #define J1_EN_Pin GPIO_PIN_2
 #define J1_EN_GPIO_Port GPIOB
-#define BTN2_Pin GPIO_PIN_12
-#define BTN2_GPIO_Port GPIOB
-#define BATTERY_CHANGER_Pin GPIO_PIN_14
-#define BATTERY_CHANGER_GPIO_Port GPIOB
 #define OUT_GND_Pin GPIO_PIN_15
 #define OUT_GND_GPIO_Port GPIOB
 #define AS5600_2_SCL_Pin GPIO_PIN_8
@@ -94,16 +90,14 @@ void Error_Handler(void);
 #define LED_GPIO_Port GPIOA
 #define AS5600_2_SDA_Pin GPIO_PIN_4
 #define AS5600_2_SDA_GPIO_Port GPIOB
-#define J3_EN_Pin GPIO_PIN_5
-#define J3_EN_GPIO_Port GPIOB
 #define AS5600_1_SCL_Pin GPIO_PIN_6
 #define AS5600_1_SCL_GPIO_Port GPIOB
 #define AS5600_1_SDA_Pin GPIO_PIN_7
 #define AS5600_1_SDA_GPIO_Port GPIOB
-#define SERVO1_TIM4_CH3_Pin GPIO_PIN_8
-#define SERVO1_TIM4_CH3_GPIO_Port GPIOB
-#define SERVO_J3_TIM4_CH4_Pin GPIO_PIN_9
-#define SERVO_J3_TIM4_CH4_GPIO_Port GPIOB
+#define SERVO_J3_TIM4_CH3_Pin GPIO_PIN_8
+#define SERVO_J3_TIM4_CH3_GPIO_Port GPIOB
+#define J3_EN_Pin GPIO_PIN_9
+#define J3_EN_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

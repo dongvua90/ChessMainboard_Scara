@@ -65,8 +65,8 @@ all: main-build
 main-build: Robochess_2021_mainboard_v1.0.elf secondary-outputs
 
 # Tool invocations
-Robochess_2021_mainboard_v1.0.elf: $(OBJS) $(USER_OBJS) C:\Users\84167\Documents\STM32CUBE_IDE\Robochess_2021_mainboard_v1.0\STM32F401CCUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "Robochess_2021_mainboard_v1.0.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\84167\Documents\STM32CUBE_IDE\Robochess_2021_mainboard_v1.0\STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Robochess_2021_mainboard_v1.0.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
+Robochess_2021_mainboard_v1.0.elf: $(OBJS) $(USER_OBJS) /home/nero/STM32CubeIDE/workspace_1.6.1/Robochess_2021_mainboard_v1.0/STM32F401CCUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "Robochess_2021_mainboard_v1.0.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"/home/nero/STM32CubeIDE/workspace_1.6.1/Robochess_2021_mainboard_v1.0/STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="Robochess_2021_mainboard_v1.0.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

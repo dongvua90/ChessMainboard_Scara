@@ -1,4 +1,3 @@
-AS5600.c:18:6:HAL_I2C_ErrorCallback	16	static
 AS5600.c:27:6:AS5600_M1_getPOS	16	static
 AS5600.c:30:6:AS5600_M2_getPOS	16	static
 AS5600.c:33:6:AS5600_M1_status	32	static

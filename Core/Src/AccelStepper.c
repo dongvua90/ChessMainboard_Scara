@@ -152,13 +152,11 @@ void run(struct AccelStepperData * AccelMotor)
 				case TIM_CHANNEL_4: AccelMotor->USER_TIMER->CCR4=0; break;
 			}
 //			AccelMotor->sumComplete++;
-		}
-  	else{		
+	}else{
 	    AccelMotor->USER_TIMER->ARR=(uint16_t)AccelMotor->_stepInterval;
 //		if((distanceToGo(AccelMotor)>3) || (distanceToGo(AccelMotor)>-3)) AccelMotor->sumComplete =0;
-		}
 	}
-	else if((distanceToGo(AccelMotor)>0) || (distanceToGo(AccelMotor)<0)){
+  }else if((distanceToGo(AccelMotor)>0) || (distanceToGo(AccelMotor)<0)){
 		computeNewSpeed(AccelMotor);
 		if(AccelMotor->_stepInterval==0){
 				switch(AccelMotor->TIM_CHANEL){
